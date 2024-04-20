@@ -4,6 +4,8 @@ pragma solidity ^0.8.19;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {OpenDexERC20} from "./OpenDexERC20.sol";
 
+import {Test, console2} from "forge-std/Test.sol";
+
 uint256 constant MINIMUM_LIQUIDITY = 10**3;
 
 error Reantrant();
@@ -77,7 +79,10 @@ contract OpenDexPair is OpenDexERC20 {
 
     kVariable = reserve0 * reserve1;
   }
-  // 0: 100 1: 20
+
+  /**
+   * @notice Swap function with a 0.3% base fees
+   */
   function swap(uint256 amount0In, uint256 amount1In) external reantrancyGuard returns(uint256) {
     if (amount0In == 0 && amount1In == 0) revert NoAmount();
     if (amount0In > 0 && amount1In > 0) revert InvalidAmount();
@@ -85,12 +90,18 @@ contract OpenDexPair is OpenDexERC20 {
 
     uint256 amountOut;
     if (amount0In > 0) {
-      amountOut = reserve1 - (reserve0 * reserve1) / (reserve0 + amount0In);
+      amountOut = reserve1 - (reserve0 * reserve1) / (reserve0 + amount0In * (10000 - 30) / 10000);
+      IERC20(token0).transferFrom(msg.sender, address(this), amount0In);
+      IERC20(token1).transfer(msg.sender, amountOut);
     } else {
-      amountOut = reserve0 - (reserve0 * reserve1) / (reserve1 + amount1In);
+      amountOut = reserve0 - (reserve0 * reserve1) / (reserve1 + amount1In * (10000 - 30) / 10000);
+      IERC20(token1).transferFrom(msg.sender, address(this), amount1In);
+      IERC20(token0).transfer(msg.sender, amountOut);
     }
 
-    if (kVariable != reserve0 * reserve1) revert VariableKNotMatch();
+    _syncReserve();
+
+    if (kVariable > reserve0 * reserve1) revert VariableKNotMatch();
 
     return (amountOut);
   }
