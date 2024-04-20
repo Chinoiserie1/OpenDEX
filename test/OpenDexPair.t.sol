@@ -46,4 +46,11 @@ contract CounterTest is Test {
     pair.addLiquidity(500 ether, 1000 ether);
     pair.addLiquidity(50 ether, 100 ether);
   }
+
+  function testSwap() public {
+    testETH.approve(address(pair), 50000 ether);
+    testDAI.approve(address(pair), 50000 ether);
+    pair.addLiquidity(500 ether, 1000 ether);
+    pair.swap(1, 0);
+  }
 }

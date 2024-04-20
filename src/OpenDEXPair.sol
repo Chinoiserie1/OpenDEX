@@ -10,6 +10,7 @@ error Reantrant();
 error InvalidAmount();
 error NoAmount();
 error InsufficientLiquidity();
+error VariableKNotMatch();
 
 /**
  * @notice Simple ERC20 Decentralized Exchange by chixx.eth
@@ -76,12 +77,22 @@ contract OpenDexPair is OpenDexERC20 {
 
     kVariable = reserve0 * reserve1;
   }
+  // 0: 100 1: 20
+  function swap(uint256 amount0In, uint256 amount1In) external reantrancyGuard returns(uint256) {
+    if (amount0In == 0 && amount1In == 0) revert NoAmount();
+    if (amount0In > 0 && amount1In > 0) revert InvalidAmount();
+    if (amount0In > reserve0 || amount1In > reserve1) revert InsufficientLiquidity();
 
-  function swap(uint256 amount0Out, uint256 amount1Out) external reantrancyGuard {
-    if (amount0Out == 0 && amount1Out == 0) revert NoAmount();
-    if (amount0Out > 0 && amount1Out > 0) revert InvalidAmount();
-    if (amount0Out > reserve0 || amount1Out > reserve1) revert InsufficientLiquidity();
-    
+    uint256 amountOut;
+    if (amount0In > 0) {
+      amountOut = reserve1 - (reserve0 * reserve1) / (reserve0 + amount0In);
+    } else {
+      amountOut = reserve0 - (reserve0 * reserve1) / (reserve1 + amount1In);
+    }
+
+    if (kVariable != reserve0 * reserve1) revert VariableKNotMatch();
+
+    return (amountOut);
   }
 
   function _syncReserve() internal {
