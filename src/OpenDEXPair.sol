@@ -2,7 +2,8 @@
 pragma solidity ^0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {OpenDexERC20} from "./OpenDexERC20.sol";
+import {Math} from "./lib/Math.sol";
 
 uint256 constant MINIMUM_LIQUIDITY = 10**3;
 
@@ -11,7 +12,7 @@ error Reantrant();
 /**
  * @notice Simple Decentralized Exchange by chixx.eth
  */
-contract OpenDexPair is ERC20 {
+contract OpenDexPair is OpenDexERC20 {
   address public factory;
   address public token0;
   address public token1;
@@ -22,29 +23,30 @@ contract OpenDexPair is ERC20 {
 
   uint256 private reantrant = 1;
 
-  modifier reantrancyGuard {
+  constructor(address _factory, address _token0, address _token1) {
+    factory = _factory;
+    token0 = _token0;
+    token1 = _token1;
+  }
+
+    modifier reantrancyGuard {
     if (reantrant == 0) revert Reantrant();
     reantrant = 0;
     _;
     reantrant = 1;
   }
 
-  constructor(address _factory, address _token0, address _token1) ERC20("LPToken", "LP") {
-    factory = _factory;
-    token0 = _token0;
-    token1 = _token1;
-  }
-
   function addLiquidity(uint256 amount0, uint256 amount1) external reantrancyGuard returns(uint256 liquidity) {
-    uint256 totalSupply = totalSupply();
+    uint256 _totalSupply = totalSupply;
     uint256 balance0 = IERC20(token0).balanceOf(address(this));
     uint256 balance1 = IERC20(token1).balanceOf(address(this));
-    if (kVariable == 0) {
-      liquidity = amount0 * amount1 - MINIMUM_LIQUIDITY;
+    if (_totalSupply == 0) {
+      // liquidity = Math.sqrt(amount0 * amount1) - MINIMUM_LIQUIDITY;
+      liquidity = amount0 + amount1 - MINIMUM_LIQUIDITY;
       _mint(address(0), MINIMUM_LIQUIDITY);
     } else {
-      uint256 liquidityX = amount0 * totalSupply / balance0;
-      uint256 liquidityY = amount1 * totalSupply / balance1;
+      uint256 liquidityX = amount0 * _totalSupply / balance0;
+      uint256 liquidityY = amount1 * _totalSupply / balance1;
       liquidity = (liquidityX + liquidityY) / 2;
     }
 
@@ -54,6 +56,8 @@ contract OpenDexPair is ERC20 {
     _mint(msg.sender, liquidity);
 
     _syncReserve(balance0 + amount0, balance1 + amount1);
+
+    kVariable = reserve0 * reserve1;
   }
 
   function _syncReserve(uint256 balance0, uint256 balance1) internal {
