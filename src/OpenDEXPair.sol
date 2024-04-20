@@ -3,11 +3,11 @@ pragma solidity ^0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {OpenDexERC20} from "./OpenDexERC20.sol";
-import {Math} from "./lib/Math.sol";
 
 uint256 constant MINIMUM_LIQUIDITY = 10**3;
 
 error Reantrant();
+error InvalidAmount();
 
 /**
  * @notice Simple Decentralized Exchange by chixx.eth
@@ -41,7 +41,6 @@ contract OpenDexPair is OpenDexERC20 {
     uint256 balance0 = IERC20(token0).balanceOf(address(this));
     uint256 balance1 = IERC20(token1).balanceOf(address(this));
     if (_totalSupply == 0) {
-      // liquidity = Math.sqrt(amount0 * amount1) - MINIMUM_LIQUIDITY;
       liquidity = amount0 + amount1 - MINIMUM_LIQUIDITY;
       _mint(address(0), MINIMUM_LIQUIDITY);
     } else {
@@ -56,6 +55,21 @@ contract OpenDexPair is OpenDexERC20 {
     _mint(msg.sender, liquidity);
 
     _syncReserve(balance0 + amount0, balance1 + amount1);
+
+    kVariable = reserve0 * reserve1;
+  }
+
+  function removeLiquidity(uint256 lpTokenAmount) external reantrancyGuard returns(uint256 token0Out, uint256 token1Out) {
+    uint256 _totalSupply = totalSupply;
+    uint256 balance0 = IERC20(token0).balanceOf(address(this));
+    uint256 balance1 = IERC20(token1).balanceOf(address(this));
+    token0Out = lpTokenAmount * balance0 / _totalSupply;
+    token1Out = lpTokenAmount * balance1 / _totalSupply;
+    _burn(address(this), lpTokenAmount);
+    IERC20(token0).transfer(msg.sender, token0Out);
+    IERC20(token1).transfer(msg.sender, token1Out);
+
+    _syncReserve(balance0 - token0Out, balance1 - token1Out);
 
     kVariable = reserve0 * reserve1;
   }
