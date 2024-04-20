@@ -8,9 +8,11 @@ uint256 constant MINIMUM_LIQUIDITY = 10**3;
 
 error Reantrant();
 error InvalidAmount();
+error NoAmount();
+error InsufficientLiquidity();
 
 /**
- * @notice Simple Decentralized Exchange by chixx.eth
+ * @notice Simple ERC20 Decentralized Exchange by chixx.eth
  */
 contract OpenDexPair is OpenDexERC20 {
   address public factory;
@@ -54,7 +56,7 @@ contract OpenDexPair is OpenDexERC20 {
 
     _mint(msg.sender, liquidity);
 
-    _syncReserve(balance0 + amount0, balance1 + amount1);
+    _syncReserve();
 
     kVariable = reserve0 * reserve1;
   }
@@ -65,17 +67,25 @@ contract OpenDexPair is OpenDexERC20 {
     uint256 balance1 = IERC20(token1).balanceOf(address(this));
     token0Out = lpTokenAmount * balance0 / _totalSupply;
     token1Out = lpTokenAmount * balance1 / _totalSupply;
-    _burn(address(this), lpTokenAmount);
+
+    _burn(msg.sender, lpTokenAmount);
     IERC20(token0).transfer(msg.sender, token0Out);
     IERC20(token1).transfer(msg.sender, token1Out);
 
-    _syncReserve(balance0 - token0Out, balance1 - token1Out);
+    _syncReserve();
 
     kVariable = reserve0 * reserve1;
   }
 
-  function _syncReserve(uint256 balance0, uint256 balance1) internal {
-    reserve0 = balance0;
-    reserve1 = balance1;
+  function swap(uint256 amount0Out, uint256 amount1Out) external reantrancyGuard {
+    if (amount0Out == 0 && amount1Out == 0) revert NoAmount();
+    if (amount0Out > 0 && amount1Out > 0) revert InvalidAmount();
+    if (amount0Out > reserve0 || amount1Out > reserve1) revert InsufficientLiquidity();
+    
+  }
+
+  function _syncReserve() internal {
+    reserve0 = IERC20(token0).balanceOf(address(this));
+    reserve1 = IERC20(token1).balanceOf(address(this));
   }
 }
