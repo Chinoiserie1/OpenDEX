@@ -1,13 +1,28 @@
+# Open DEX
+
+Open Dex is a simple ERC20 decentralized exchange, this repository is for educational purpose and it's not audited.
+
+## Structure
+
+Open Dex is composed of 2 contracts.
+
+- **OpenDexFactory:** This contract consist to create liquidity pool (OpenDexPair).
+- **OpenDexPair:** This contract consist of the logic of the decentralized exchange.
+
+## OpenDexFactory
+
+## OpenDexPair
+
 ## Foundry
 
 **Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
 
 Foundry consists of:
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
+- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
+- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
+- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
 
 ## Documentation
 
