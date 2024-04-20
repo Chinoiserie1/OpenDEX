@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+import {Test, console2} from "forge-std/Test.sol";
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {OpenDexERC20} from "./OpenDexERC20.sol";
-
-import {Test, console2} from "forge-std/Test.sol";
 
 uint256 constant MINIMUM_LIQUIDITY = 10**3;
 

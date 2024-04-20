@@ -6,6 +6,10 @@ import {Test, console2} from "forge-std/Test.sol";
 import {OpenDexPair} from "../src/OpenDexPair.sol";
 import {TestERC20} from '../src/testToken/TestERC20.sol';
 
+uint256 constant maxUint = uint256(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
+uint256 constant halfMaxUint = uint256(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
+uint256 constant bigUint = uint256(0x00000000000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
+
 contract CounterTest is Test {
   OpenDexPair public pair;
   TestERC20 public testETH;
@@ -58,7 +62,20 @@ contract CounterTest is Test {
     testETH.approve(address(pair), 50000 ether);
     testDAI.approve(address(pair), 50000 ether);
     pair.addLiquidity(500 ether, 1000 ether);
-    testETH.transfer(address(pair), 1.1 ether);
+    // testETH.transfer(address(pair), 1.1 ether);
     pair.swap(1 ether, 0);
+  }
+
+  function testAddLiquidityFuzzAmountIn0(uint256 amount0In) public {
+    if (amount0In < 1 ether) return;
+    uint256 amount1Liquidity = amount0In / 2;
+    if (amount0In > bigUint) {
+      amount1Liquidity = 2;
+      return;
+    }
+    if (amount0In > halfMaxUint - 1) return;
+    testETH.approve(address(pair), amount0In);
+    testDAI.approve(address(pair), amount0In / 2);
+    pair.addLiquidity(amount0In, amount1Liquidity);
   }
 }
