@@ -13,12 +13,28 @@ Open Dex is composed of 2 contracts.
 
 ### OpenDexFactory
 
-- **createPair()** take 2 parameters, addresses of the pair token (token A & token B).
-- **getPair()** take 2 parameters, addresses of the pair token (token A & token B) and return address of the pair contract.
+#### Creating a New Token Pair
+
+- **createPair(tokenA, tokenB)**
+
+  - **Parameters:**
+    - `tokenA`: Address of the first token in the pair.
+    - `tokenB`: Address of the second token in the pair.
+  - **Description**: Use this function to create a new liquidity pool for trading between token A and token B. This ensures that traders can swap between these two tokens and provide liquidity to earn transaction fees. The function will return the address of the newly created liquidity pool if successful.
+  - **Returns**: Address of the newly created liquidity pool.
+
+#### Retrieving a Liquidity Pool Address
+
+- **getPair(tokenA, tokenB)**
+  - **Parameters:**
+    - `tokenA`: Address of the first token in the pair.
+    - `tokenB`: Address of the second token in the pair.
+  - **Description**: Use this function to query the address of the liquidity pool for a given pair of tokens. This allows users and other contracts to interact with the specific liquidity pool for trading or liquidity provision purposes.
+  - **Returns**: Address of the liquidity pool, or `0x0` if no pool exists for the pair.
 
 ### OpenDexPair
 
-### Adding Liquidity
+#### Adding Liquidity
 
 - **addLiquidity(amountA, amountB)**
 
@@ -28,7 +44,7 @@ Open Dex is composed of 2 contracts.
   - **Description**: Deposit `amountA` of token A and `amountB` of token B to the liquidity pool to add liquidity. Upon successful deposit, the user receives liquidity tokens corresponding to their share in the pool.
   - **Returns**: The number of liquidity tokens issued to the depositor.
 
-### Removing Liquidity
+#### Removing Liquidity
 
 - **removeLiquidity(liquidityTokens)**
   - **Parameters:**
