@@ -3,8 +3,8 @@ pragma solidity ^0.8.19;
 
 import {Test, console2} from "forge-std/Test.sol";
 
-import {OpenDexPair} from "../src/OpenDexPair.sol";
-import {TestERC20} from '../src/testToken/TestERC20.sol';
+import {OpenDexPair} from "../../src/v1/OpenDexPair.sol";
+import {TestERC20} from '../../src/testToken/TestERC20.sol';
 
 uint256 constant maxUint = uint256(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
 uint256 constant halfMaxUint = uint256(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
