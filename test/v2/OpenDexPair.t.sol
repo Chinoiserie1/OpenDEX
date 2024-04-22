@@ -3,12 +3,19 @@ pragma solidity ^0.8.19;
 
 import {Test, console2} from "forge-std/Test.sol";
 
+import '../../src/v2/interface/IOpenDexFactory.sol';
+import '../../src/v2/interface/IOpenDexPair.sol';
+
+import '../../src/v2/OpenDexFactory.sol';
 import '../../src/v2/OpenDexPair.sol';
 import {TestERC20} from '../../src/testToken/TestERC20.sol';
+
+import '../../src/lib/Math.sol';
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TestOpenDexPair is Test {
+  OpenDexFactory public factory;
   OpenDexPair public pair;
   TestERC20 public testETH;
   TestERC20 public testDAI;
@@ -25,6 +32,10 @@ contract TestOpenDexPair is Test {
   address internal user3;
   uint256 internal signerPrivateKey;
   address internal signer;
+  uint256 internal feeSetterPrivateKey;
+  address internal feeSetter;
+  uint256 internal feePrivateKey;
+  address internal fee;
 
   function setUp() public {
     ownerPrivateKey = 0xA11CE;
@@ -37,13 +48,23 @@ contract TestOpenDexPair is Test {
     user3 = vm.addr(user3PrivateKey);
     signerPrivateKey = 0xF10;
     signer = vm.addr(signerPrivateKey);
-    vm.startPrank(owner);
+    feeSetterPrivateKey = 0xfee5e11e5;
+    feeSetter = vm.addr(feeSetterPrivateKey);
+    feePrivateKey = 0xfee;
+    fee = vm.addr(feePrivateKey);
+    
+    vm.prank(owner);
+    factory = new OpenDexFactory(feeSetter);
 
+    vm.prank(feeSetter);
+    factory.setFeeTo(fee);
+    
+    vm.startPrank(owner);
     testETH = new TestERC20();
     testDAI = new TestERC20();
-    pair = new OpenDexPair();
+    factory.createPair(address(testETH), address(testDAI));
+    pair = OpenDexPair(factory.getPair(address(testETH), address(testDAI)));
     (token0, token1) = address(testETH) < address(testDAI) ? (address(testETH), address(testDAI)) : (address(testDAI), address(testETH));
-    pair.initialize(token0, token1);
   }
 
   function testGetToken() public view {
@@ -51,8 +72,19 @@ contract TestOpenDexPair is Test {
     require(pair.token1() == token1, "fail get correct token1 address");
   }
 
+  function testMint() public {
+    testETH.transfer(address(pair), 1 ether);
+    testDAI.transfer(address(pair), 1 ether);
+    pair.mint(user1);
+  }
+
   function test() public {
-    pair.getReserves();
+    // console2.logBytes4(IOpenDexFactory.feeTo.selector);
+    // pair.getReserves();
+    // console2.log(Math.sqrt(50)); // 4338 gas
+    // console2.log(Math.sqrtA(250)); // 3515 gas
+    console2.log(Math.min(30, 40));
+    console2.log(Math.minAssembly(30, 40));
   }
 }
 

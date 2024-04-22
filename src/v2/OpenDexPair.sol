@@ -6,18 +6,26 @@ import {console2} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {OpenDexERC20} from "../OpenDexERC20.sol";
 
+import './interface/IOpenDexFactory.sol';
+import '../lib/Math.sol';
+
 error Reantrant();
 
 uint256 constant MINIMUM_LIQUIDITY = 10**3;
 
 uint256 constant BALANCE_OF_SELECTOR = 0x70a0823100000000000000000000000000000000000000000000000000000000;
 
+uint256 constant FEE_TO_SELECTOR = 0x017e7e5800000000000000000000000000000000000000000000000000000000;
+
+// first 4 bit keccak256("overflow()")
+bytes32 constant OVERFLOW = 0x004264c300000000000000000000000000000000000000000000000000000000;
+
 /**
  * @notice UniswapV2 fork in assembly
  * 
  * reference: https://github.com/Uniswap/v2-core/blob/master/contracts/UniswapV2Pair.sol
  */
-contract OpenDexPair {
+contract OpenDexPair is OpenDexERC20 {
   address public factory;
   address public token0;
   address public token1;
@@ -25,6 +33,10 @@ contract OpenDexPair {
   uint112 private reserve0;
   uint112 private reserve1;
   uint32 private blockTimestampLast;
+
+  uint256 public price0CumulativeLast;
+  uint256 public price1CumulativeLast;
+  uint256 public kLast;
 
   uint256 private reantrant = 1;
 
@@ -37,7 +49,7 @@ contract OpenDexPair {
 
   constructor() {
     assembly {
-      sstore(0, caller())
+      sstore(factory.slot, caller())
     }
   }
 
@@ -60,7 +72,69 @@ contract OpenDexPair {
     }
   }
 
-  function mint(address _to, uint256 _amount0, uint256 _amount1, address _payer) external returns(uint256 _liquidity) {
+  function _mintFee(uint112 _reserve0, uint112 _reserve1) private returns (bool feeOn) {
+    address feeTo;
+    uint256 liquidity;
+    bytes32 log;
+    assembly {
+      function sqrt(y) -> z {
+        if gt(y, 3) {
+          z := y
+          let x := add(div(y, 2), 1)
+          for {} lt(x, z) {} {
+            z := x
+            x := div(add(div(y, x), x) , 2)
+          }
+        }
+        if and(gt(y, 0), lt(y, 4)) {
+          z := 1
+        }
+      }
+      // get address fee to from factory
+      mstore(0x00, FEE_TO_SELECTOR)
+      let callstatus := call(gas(), sload(factory.slot), 0, 0x00, 0x04, 0x00, 0x20)
+      if iszero(callstatus) {
+        revert(0x00, returndatasize())
+      }
+      feeTo := mload(0x00)
+      feeOn := 1
+      // check if address eq zero
+      if iszero(mload(0x00)) {
+        feeOn := 0
+      }
+      let _kLast := sload(kLast.slot)
+
+      if eq(feeOn, 1) {
+        if gt(_kLast, 0) {
+          let k := mul(_reserve0, _reserve1)
+          if lt(k, _reserve1) {
+            mstore(0x00, OVERFLOW)
+            revert(0x00, 0x04)
+          }
+          let rootK := sqrt(k)
+          let rootKLast := sqrt(_kLast)
+          if gt(rootK, rootKLast) {
+            let totalSupply_ := sload(totalSupply.slot)
+            let numerator := mul(totalSupply_, sub(rootK, rootKLast))
+            // check overflow
+            if lt(numerator, totalSupply_) {
+              mstore(0x00, OVERFLOW)
+              revert(0x00, 0x04)
+            }
+            let denominator := add(mul(rootK, 5), rootKLast) // can't overflow (normaly ? need test)
+            liquidity := div(numerator, denominator)
+          }
+        }
+      }
+      if and(iszero(feeOn), gt(_kLast, 0)) {
+        sstore(kLast.slot, 0)
+      }
+    }
+    if (liquidity > 0) _mint(feeTo, liquidity);
+    console2.logBytes32(log);
+  }
+
+  function mint(address to) external returns(uint256 liquidity) {
     uint112 reserve0_;
     uint112 reserve1_;
     uint256 balance0_;
@@ -94,5 +168,46 @@ contract OpenDexPair {
         revert (0, 0)
       }
     }
+
+    bool feeOn = _mintFee(reserve0_, reserve1_);
+    uint256 totalSupply_;
+    assembly {
+      totalSupply_ := sload(totalSupply.slot)
+    }
+
+    if (totalSupply_ == 0) _mint(address(0), MINIMUM_LIQUIDITY);
+    
+    assembly {
+      function sqrt(y) -> z {
+        if gt(y, 3) {
+          z := y
+          let x := add(div(y, 2), 1)
+          for {} lt(x, z) {} {
+            z := x
+            x := div(add(div(y, x), x) , 2)
+          }
+        }
+        if and(gt(y, 0), lt(y, 4)) {
+          z := 1
+        }
+      }
+      function min(x, y) -> z {
+        z := y
+        if lt(x, y) {
+          z := x
+        }
+      }
+      if iszero(totalSupply_) {
+        liquidity := sqrt(sub(mul(amount0_, amount1_), MINIMUM_LIQUIDITY))
+      }
+      if gt(totalSupply_, 0) {
+        liquidity := min(div(mul(amount0_, totalSupply_), reserve0_), div(mul(amount1_, totalSupply_), reserve1_))
+      }
+      if iszero(liquidity) {
+        revert(0,0)
+      }
+    }
+    _mint(to, liquidity);
   }
+
 }
