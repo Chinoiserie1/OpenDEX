@@ -8,6 +8,7 @@ import {OpenDexERC20} from "./OpenDexERC20.sol";
 
 uint256 constant MINIMUM_LIQUIDITY = 10**3;
 
+error InvalidCaller();
 error Reantrant();
 error InvalidAmount();
 error NoAmount();
@@ -28,13 +29,17 @@ contract OpenDexPair is OpenDexERC20 {
 
   uint256 private reantrant = 1;
 
-  constructor(address _factory, address _token0, address _token1) {
-    factory = _factory;
+  constructor() {
+    factory = msg.sender;
+  }
+
+  function initPair(address _token0, address _token1) external {
+    if (msg.sender != factory) revert InvalidCaller();
     token0 = _token0;
     token1 = _token1;
   }
 
-    modifier reantrancyGuard {
+  modifier reantrancyGuard {
     if (reantrant == 0) revert Reantrant();
     reantrant = 0;
     _;
@@ -83,12 +88,11 @@ contract OpenDexPair is OpenDexERC20 {
   /**
    * @notice Swap function with a 0.3% base fees
    */
-  function swap(uint256 amount0In, uint256 amount1In) external reantrancyGuard returns(uint256) {
+  function swap(uint256 amount0In, uint256 amount1In) external reantrancyGuard returns(uint256 amountOut) {
     if (amount0In == 0 && amount1In == 0) revert NoAmount();
     if (amount0In > 0 && amount1In > 0) revert InvalidAmount();
     if (amount0In > reserve0 || amount1In > reserve1) revert InsufficientLiquidity();
 
-    uint256 amountOut;
     if (amount0In > 0) {
       amountOut = reserve1 - (reserve0 * reserve1) / (reserve0 + amount0In * (10000 - 30) / 10000);
       IERC20(token0).transferFrom(msg.sender, address(this), amount0In);
@@ -102,8 +106,6 @@ contract OpenDexPair is OpenDexERC20 {
     _syncReserve();
 
     if (kVariable > reserve0 * reserve1) revert VariableKNotMatch();
-
-    return (amountOut);
   }
 
   function _syncReserve() internal {

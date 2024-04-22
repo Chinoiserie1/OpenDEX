@@ -41,7 +41,9 @@ contract CounterTest is Test {
 
     testETH = new TestERC20();
     testDAI = new TestERC20();
-    pair = new OpenDexPair(owner, address(testETH), address(testDAI));
+    pair = new OpenDexPair();
+    (address token0, address token1) = address(testETH) < address(testDAI) ? (address(testETH), address(testDAI)) : (address(testDAI), address(testETH));
+    pair.initPair(token0, token1);
   }
 
   function testAddLiquidity() public {
