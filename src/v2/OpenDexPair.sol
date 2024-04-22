@@ -14,8 +14,10 @@ uint256 constant BALANCE_OF_SELECTOR = 0x70a082310000000000000000000000000000000
 
 /**
  * @notice UniswapV2 fork in assembly
+ * 
+ * reference: https://github.com/Uniswap/v2-core/blob/master/contracts/UniswapV2Pair.sol
  */
-contract OpenDexPairV2 {
+contract OpenDexPair {
   address public factory;
   address public token0;
   address public token1;

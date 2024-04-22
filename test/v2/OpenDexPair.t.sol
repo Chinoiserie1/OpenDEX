@@ -3,13 +3,13 @@ pragma solidity ^0.8.19;
 
 import {Test, console2} from "forge-std/Test.sol";
 
-import '../../src/v2/OpendDexPairV2.sol';
+import '../../src/v2/OpenDexPair.sol';
 import {TestERC20} from '../../src/testToken/TestERC20.sol';
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract TestOpenDexPairV2 is Test {
-  OpenDexPairV2 public pair;
+contract TestOpenDexPair is Test {
+  OpenDexPair public pair;
   TestERC20 public testETH;
   TestERC20 public testDAI;
   address token0;
@@ -41,7 +41,7 @@ contract TestOpenDexPairV2 is Test {
 
     testETH = new TestERC20();
     testDAI = new TestERC20();
-    pair = new OpenDexPairV2();
+    pair = new OpenDexPair();
     (token0, token1) = address(testETH) < address(testDAI) ? (address(testETH), address(testDAI)) : (address(testDAI), address(testETH));
     pair.initialize(token0, token1);
   }
