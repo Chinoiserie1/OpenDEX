@@ -4,7 +4,7 @@ pragma solidity ^0.8.19;
 import {console2} from "forge-std/Test.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {OpenDexERC20} from "../OpenDexERC20.sol";
+import {OpenDexERC20} from "../v1/OpenDexERC20.sol";
 
 import './interface/IOpenDexFactory.sol';
 import '../lib/Math.sol';
@@ -16,6 +16,8 @@ uint256 constant MINIMUM_LIQUIDITY = 10**3;
 uint256 constant BALANCE_OF_SELECTOR = 0x70a0823100000000000000000000000000000000000000000000000000000000;
 
 uint256 constant FEE_TO_SELECTOR = 0x017e7e5800000000000000000000000000000000000000000000000000000000;
+
+uint112 constant MAX_UINT_112 = 0x0000000000000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
 // first 4 bit keccak256("overflow()")
 bytes32 constant OVERFLOW = 0x004264c300000000000000000000000000000000000000000000000000000000;
@@ -65,17 +67,36 @@ contract OpenDexPair is OpenDexERC20 {
   function initialize(address _token0, address _token1) external {
     assembly {
       if iszero(eq(sload(factory.slot), caller())) {
-        revert(0, 0)
+        revert(0, 0) // revert need to be set with a error
       }
       sstore(token0.slot, _token0)
       sstore(token1.slot, _token1)
     }
   }
 
+  function _update(uint256 _balance0, uint256 _balance1, uint112 _reserve0, uint112 _reserve1) private {
+    assembly {
+      if or(gt(_balance0, MAX_UINT_112), gt(_balance1, MAX_UINT_112)) {
+        mstore(0x00, OVERFLOW)
+        revert(0x00, 0x04)
+      }
+      // use free memory because its cheaper
+      mstore(0x00, mod(timestamp(), exp(2, 32))) // blockTimestamp
+      mstore(0x20, sub(mload(0x00), sload(blockTimestampLast.slot))) // timeElapsed
+      if and(and(gt(mload(0x20), 0), gt(_reserve0, 0)), gt(_reserve1, 0)) {
+        sstore(price0CumulativeLast.slot, mul(div(_reserve1, _reserve0), mload(0x20)))
+        sstore(price1CumulativeLast.slot, mul(div(_reserve0, _reserve1), mload(0x20)))
+      }
+      sstore(reserve0.slot, _balance0)
+      sstore(reserve1.slot, _balance1)
+      sstore(blockTimestampLast.slot, mload(0x00))
+      // should emit Sync(reserve0, reserve1);
+    }
+  }
+
   function _mintFee(uint112 _reserve0, uint112 _reserve1) private returns (bool feeOn) {
     address feeTo;
     uint256 liquidity;
-    bytes32 log;
     assembly {
       function sqrt(y) -> z {
         if gt(y, 3) {
@@ -131,7 +152,6 @@ contract OpenDexPair is OpenDexERC20 {
       }
     }
     if (liquidity > 0) _mint(feeTo, liquidity);
-    console2.logBytes32(log);
   }
 
   function mint(address to) external returns(uint256 liquidity) {
@@ -165,7 +185,7 @@ contract OpenDexPair is OpenDexERC20 {
       amount1_ := sub(balance1_, reserve1_)
       // check underflow
       if or(gt(amount0_, balance0_), gt(amount1_, balance1_)) {
-        revert (0, 0)
+        revert (0, 0) // revert need to be set with a error
       }
     }
 
@@ -176,7 +196,7 @@ contract OpenDexPair is OpenDexERC20 {
     }
 
     if (totalSupply_ == 0) _mint(address(0), MINIMUM_LIQUIDITY);
-    
+
     assembly {
       function sqrt(y) -> z {
         if gt(y, 3) {
@@ -204,10 +224,19 @@ contract OpenDexPair is OpenDexERC20 {
         liquidity := min(div(mul(amount0_, totalSupply_), reserve0_), div(mul(amount1_, totalSupply_), reserve1_))
       }
       if iszero(liquidity) {
-        revert(0,0)
+        revert(0,0) // revert need to be set with a error
       }
     }
     _mint(to, liquidity);
+
+    _update(balance0_, balance1_, reserve0_, reserve1_);
+
+    assembly {
+      if eq(feeOn, 1) {
+        sstore(kLast.slot, mul(sload(reserve0.slot), sload(reserve1.slot)))
+        // should emit Mint(msg.sender, amount0, amount1);
+      }
+    }
   }
 
 }

@@ -73,6 +73,7 @@ contract TestOpenDexPair is Test {
   }
 
   function testMint() public {
+    vm.warp(365 days * 6);
     testETH.transfer(address(pair), 1 ether);
     testDAI.transfer(address(pair), 1 ether);
     pair.mint(user1);
@@ -83,8 +84,8 @@ contract TestOpenDexPair is Test {
     // pair.getReserves();
     // console2.log(Math.sqrt(50)); // 4338 gas
     // console2.log(Math.sqrtA(250)); // 3515 gas
-    console2.log(Math.min(30, 40));
-    console2.log(Math.minAssembly(30, 40));
+    // console2.log(Math.min(30, 40));
+    // console2.log(Math.minAssembly(30, 40));
   }
 }
 
