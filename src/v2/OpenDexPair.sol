@@ -60,8 +60,8 @@ contract OpenDexPair is OpenDexERC20 {
   function getReserves() public view returns (uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast) {
     assembly {
       mstore(0, sload(reserve0.slot))
-      _reserve0 := mload(0x00)
-      _reserve1 := shr(112, mload(0x00))
+      _reserve0 := shr(144, shl(144, mload(0x00)))
+      _reserve1 := shr(144, shl(32, mload(0x00)))
       _blockTimestampLast := shr(224, mload(0x00))
     }
   }
@@ -84,15 +84,14 @@ contract OpenDexPair is OpenDexERC20 {
       }
       // use free memory because its cheaper
       mstore(0x00, mod(timestamp(), exp(2, 32))) // blockTimestamp
-      mstore(0x20, sub(mload(0x00), sload(blockTimestampLast.slot))) // timeElapsed
+      mstore(0x20, sub(mload(0x00), shr(224, sload(blockTimestampLast.slot)))) // timeElapsed
       if and(and(gt(mload(0x20), 0), gt(_reserve0, 0)), gt(_reserve1, 0)) {
         sstore(price0CumulativeLast.slot, mul(div(_reserve1, _reserve0), mload(0x20)))
         sstore(price1CumulativeLast.slot, mul(div(_reserve0, _reserve1), mload(0x20)))
       }
-      sstore(reserve0.slot, _balance0)
-      sstore(reserve1.slot, _balance1)
-      sstore(blockTimestampLast.slot, mload(0x00))
-      // should emit Sync(reserve0, reserve1);
+      // store reserve0, reserv1, blockTimestampLast in the same slot
+      mstore(0x20, add(add(shl(112, _balance1), shl(224, mload(0x00))), _balance0))
+      sstore(reserve0.slot, mload(0x20))
     }
   }
 
@@ -306,7 +305,7 @@ contract OpenDexPair is OpenDexERC20 {
     _burn(address(this), liquidity);
 
     assembly {
-      // perform transfer
+      // transfer token fn
       function transfer(token, receiver, amount) {
         let slot0x40 := mload(0x40)
         mstore(0x00, TRANSFER_SELECTOR)
@@ -343,5 +342,99 @@ contract OpenDexPair is OpenDexERC20 {
         // should emit Burn(msg.sender, amount0, amount1, to);
       }
     }
+  }
+
+  function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external reantrancyGuard {
+    uint112 reserve0_;
+    uint112 reserve1_;
+    uint256 balance0_;
+    uint256 balance1_;
+
+    bytes32 log;
+
+    assembly {
+      function transfer(token, receiver, amount) {
+        let slot0x40 := mload(0x40)
+        mstore(0x00, TRANSFER_SELECTOR)
+        mstore(0x04, receiver)
+        mstore(0x24, amount)
+        let callstatus := call(gas(), token, 0, 0x00, 0x44, 0x00, 0x20)
+        if iszero(callstatus) {
+          revert (0x00, returndatasize())
+        }
+        // restore free memory ptr
+        mstore(0x40, slot0x40)
+      }
+      function getBalance(tokenAddress) -> balanceResult {
+        mstore(0x00, BALANCE_OF_SELECTOR)
+        mstore(0x04, address())
+        let callstatus := call(gas(), tokenAddress, 0, 0x00, 0x24, 0x00, 0x20)
+        if iszero(callstatus) {
+          revert(0x00, returndatasize())
+        }
+        balanceResult := mload(0x00)
+      }
+      function safeSub(x, y) -> z {
+        z := sub(x, y)
+        if gt(z, x) {
+          revert(0, 0) // revert need to be set with an error underflow
+        }
+      }
+      function safeMul(x, y) -> z {
+        z := mul(x, y)
+        if lt(z, x) {
+          mstore(0x00, OVERFLOW)
+          revert(0x00, 0x04)
+        }
+      }
+
+      if and(iszero(amount0Out), iszero(amount1Out)) {
+        revert (0, 0) // revert need to be set with an error
+      }
+      // retrieve reserve0 & reserve1
+      mstore(0x00, sload(reserve0.slot))
+      reserve0_ := shr(144, shl(144, mload(0x00)))
+      reserve1_ := shr(144, shl(32, mload(0x00)))
+      if or(gt(amount0Out, reserve0_), gt(amount1Out, reserve1_)) {
+        revert(0, 0) // revert need to be set with an error
+      }
+      let token0Addy := sload(token0.slot)
+      let token1Addy := sload(token1.slot)
+      if or(eq(token0Addy, to), eq(token1Addy, to)) {
+        revert(0, 0) // revert need to be set with an error
+      }
+      if gt(amount0Out, 0) {
+        transfer(token0Addy, to, amount0Out)
+      }
+      if gt(amount1Out, 0) {
+        transfer(token1Addy, to, amount1Out)
+      }
+      // if (data.length > 0) IUniswapV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data);
+      balance0_ := getBalance(token0Addy)
+      balance1_ := getBalance(token1Addy)
+
+      // amount0In
+      let amount0In := 0
+      if gt(balance0_, safeSub(reserve0_, amount0Out)) {
+        amount0In := safeSub(balance0_, safeSub(reserve0_, amount0Out))
+      }
+      let amount1In := 0
+      if gt(balance1_, safeSub(reserve1_, amount1Out)) {
+        amount1In := safeSub(balance1_, safeSub(reserve1_, amount1Out))
+      }
+      if and(iszero(amount0In), iszero(amount1In)) {
+        revert(0, 0) // revert need to be set with an error INSUFFICIENT_INPUT_AMOUNT
+      }
+
+      mstore(0x00, safeSub(safeMul(balance0_, 1000), safeMul(amount0In, 3))) // balance0Adjusted
+      mstore(0x20, safeSub(safeMul(balance1_, 1000), safeMul(amount1In, 3))) // balance1Adjusted
+      if lt(safeMul(mload(0x00), mload(0x20)), safeMul(safeMul(reserve0_, reserve1_), exp(1000, 2))) {
+        revert(0, 0) // revert need to be set with an error K
+      }
+    }
+
+    _update(balance0_, balance1_, reserve0_, reserve1_);
+
+    // should emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
   }
 }
