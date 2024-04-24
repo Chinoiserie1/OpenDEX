@@ -13,6 +13,8 @@ error Reantrant();
 
 uint256 constant MINIMUM_LIQUIDITY = 10**3;
 
+uint256 constant TRANSFER_SELECTOR = 0xa9059cbb00000000000000000000000000000000000000000000000000000000;
+
 uint256 constant BALANCE_OF_SELECTOR = 0x70a0823100000000000000000000000000000000000000000000000000000000;
 
 uint256 constant FEE_TO_SELECTOR = 0x017e7e5800000000000000000000000000000000000000000000000000000000;
@@ -154,7 +156,7 @@ contract OpenDexPair is OpenDexERC20 {
     if (liquidity > 0) _mint(feeTo, liquidity);
   }
 
-  function mint(address to) external returns(uint256 liquidity) {
+  function mint(address to) external reantrancyGuard returns(uint256 liquidity) {
     uint112 reserve0_;
     uint112 reserve1_;
     uint256 balance0_;
@@ -239,4 +241,107 @@ contract OpenDexPair is OpenDexERC20 {
     }
   }
 
+  function burn(address to) external reantrancyGuard returns(uint256 amount0, uint256 amount1) {
+    uint112 reserve0_;
+    uint112 reserve1_;
+    uint256 balance0_;
+    uint256 balance1_;
+
+    uint256 liquidity;
+
+    address token0_;
+    address token1_;
+
+    assembly {
+      function getBalance(tokenAddress) -> balanceResult {
+        mstore(0x00, BALANCE_OF_SELECTOR)
+        mstore(0x04, address())
+        let callstatus := call(gas(), tokenAddress, 0, 0x00, 0x24, 0x00, 0x20)
+        if iszero(callstatus) {
+          revert(0x00, returndatasize())
+        }
+        balanceResult := mload(0x00)
+      }
+
+      token0_ := sload(token0.slot)
+      token1_ := sload(token1.slot)
+      // retrieve balanceOf token0 & token1
+      balance0_ := getBalance(token0_)
+      balance1_ := getBalance(token1_)
+      // retrieve reserve0 & reserve1
+      mstore(0, sload(reserve0.slot))
+      reserve0_ := mload(0x00)
+      reserve1_ := shr(112, mload(0x00))
+      // retrieve balanceOf address this
+      mstore(0x00, address())
+      mstore(0x20, balanceOf.slot)
+      let slot := keccak256(0x00, 0x40)
+      liquidity := sload(slot)
+    }
+
+    bool feeOn = _mintFee(reserve0_, reserve1_);
+
+    assembly {
+      // compute amount0
+      mstore(0x00, sload(totalSupply.slot))
+      mstore(0x20, mul(liquidity, balance0_))
+      if lt(mload(0x20), liquidity) {
+        mstore(0x00, OVERFLOW)
+        revert (0x00, 0x04)
+      }
+      amount0 := div(mload(0x20), mload(0x00))
+      // compute amount1
+      mstore(0x20, mul(liquidity, balance1_))
+      if lt(mload(0x20), liquidity) {
+        mstore(0x00, OVERFLOW)
+        revert (0x00, 0x04)
+      }
+      amount1 := div(mload(0x20), mload(0x00))
+      // check if sufficient liquidity
+      if or(iszero(amount0), iszero(amount1)) {
+        revert(0, 0) // revert need to be set with an error
+      }
+    }
+
+    _burn(address(this), liquidity);
+
+    assembly {
+      // perform transfer
+      function transfer(token, receiver, amount) {
+        let slot0x40 := mload(0x40)
+        mstore(0x00, TRANSFER_SELECTOR)
+        mstore(0x04, receiver)
+        mstore(0x24, amount)
+        let callstatus := call(gas(), token, 0, 0x00, 0x44, 0x00, 0x20)
+        if iszero(callstatus) {
+          revert (0x00, returndatasize())
+        }
+        // restore free memory ptr
+        mstore(0x40, slot0x40)
+      }
+      function getBalance(tokenAddress) -> balanceResult {
+        mstore(0x00, BALANCE_OF_SELECTOR)
+        mstore(0x04, address())
+        let callstatus := call(gas(), tokenAddress, 0, 0x00, 0x24, 0x00, 0x20)
+        if iszero(callstatus) {
+          revert(0x00, returndatasize())
+        }
+        balanceResult := mload(0x00)
+      }
+
+      transfer(token0_, to, amount0)
+      transfer(token1_, to, amount1)
+      balance0_ := getBalance(token0_)
+      balance1_ := getBalance(token1_)
+    }
+
+    _update(balance0_, balance1_, reserve0_, reserve1_);
+
+    assembly {
+      if eq(feeOn, 1) {
+        sstore(kLast.slot, mul(sload(reserve0.slot), sload(reserve1.slot)))
+        // should emit Burn(msg.sender, amount0, amount1, to);
+      }
+    }
+  }
 }

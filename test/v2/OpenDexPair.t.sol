@@ -79,7 +79,20 @@ contract TestOpenDexPair is Test {
     pair.mint(user1);
   }
 
+  function testBurn() public {
+    vm.warp(365 days * 6);
+    testETH.transfer(address(pair), 1 ether);
+    testDAI.transfer(address(pair), 2 ether);
+    uint256 liquidity = pair.mint(user1);
+
+    vm.stopPrank();
+    vm.startPrank(user1);
+    pair.transfer(address(pair), liquidity);
+    pair.burn(user1);
+  }
+
   function test() public {
+    console2.logBytes4(bytes4(keccak256(bytes('transfer(address,uint256)'))));
     // console2.logBytes4(IOpenDexFactory.feeTo.selector);
     // pair.getReserves();
     // console2.log(Math.sqrt(50)); // 4338 gas
