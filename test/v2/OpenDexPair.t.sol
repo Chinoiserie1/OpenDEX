@@ -105,6 +105,15 @@ contract TestOpenDexPair is Test {
     pair.swap(0, expectedOutputAmount, owner, "");
   }
 
+  function testSkim(uint256 amountA, uint256 amountB) public {
+    testETH.transfer(address(pair), amountA);
+    testDAI.transfer(address(pair), amountB);
+
+    pair.skim(user1);
+    assertEq(testETH.balanceOf(user1), amountA);
+    assertEq(testDAI.balanceOf(user1), amountB);
+  }
+
   function test() public {
     // console2.logBytes4(bytes4(keccak256(bytes('transfer(address,uint256)'))));
     // console2.logBytes4(IOpenDexFactory.feeTo.selector);

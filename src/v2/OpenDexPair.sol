@@ -468,4 +468,46 @@ contract OpenDexPair is OpenDexERC20 {
       mstore(0x60, 0)
     }
   }
+
+  // force balances to match reserves
+  function skim(address to) external reantrancyGuard {
+    assembly {
+      function transfer(token, receiver, amount) {
+        let slot0x40 := mload(0x40)
+        mstore(0x00, TRANSFER_SELECTOR)
+        mstore(0x04, receiver)
+        mstore(0x24, amount)
+        let callstatus := call(gas(), token, 0, 0x00, 0x44, 0x00, 0x20)
+        if iszero(callstatus) {
+          revert (0x00, returndatasize())
+        }
+        // restore free memory ptr
+        mstore(0x40, slot0x40)
+      }
+      function getBalance(tokenAddress) -> balanceResult {
+        mstore(0x00, BALANCE_OF_SELECTOR)
+        mstore(0x04, address())
+        let callstatus := call(gas(), tokenAddress, 0, 0x00, 0x24, 0x00, 0x20)
+        if iszero(callstatus) {
+          revert(0x00, returndatasize())
+        }
+        balanceResult := mload(0x00)
+      }
+      function safeSub(x, y) -> z {
+        z := sub(x, y)
+        if gt(z, x) {
+          revert(0, 0) // revert need to be set with an error underflow
+        }
+      }
+      let token0_ := sload(token0.slot)
+      let token1_ := sload(token1.slot)
+      mstore(0x00, sload(reserve0.slot))
+      transfer(token0_, to, safeSub(getBalance(token0_), shr(144, shl(144, mload(0x00)))))
+      transfer(token1_, to, safeSub(getBalance(token1_), shr(144, shl(32, mload(0x00)))))
+    }
+  }
+
+  function sync() external reantrancyGuard {
+    _update(IERC20(token0).balanceOf(address(this)), IERC20(token1).balanceOf(address(this)), reserve0, reserve1);
+  }
 }
