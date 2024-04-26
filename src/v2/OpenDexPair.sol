@@ -24,6 +24,14 @@ uint112 constant MAX_UINT_112 = 0x0000000000000000000000000000000000FFFFFFFFFFFF
 // first 4 bit keccak256("overflow()")
 bytes32 constant OVERFLOW = 0x004264c300000000000000000000000000000000000000000000000000000000;
 
+/* keccak256("Mint(address,uint256,uint256)") */
+bytes32 constant MINT_HASH = 0x4c209b5fc8ad50758f13e2e1088ba56a560dff690a1c6fef26394f4c03821c4f;
+/* keccak256("Burn(address,uint256,uint256,address)") */
+bytes32 constant BURN_HASH = 0xdccd412f0b1252819cb1fd330b93224ca42612892bb3f4f789976e6d81936496;
+
+bytes32 constant SWAP_HASH = 0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822;
+
+bytes32 constant SYNC_HASH = 0x1c411e9a96e071241c2f21f7726b17ae89e3cab4c78be50e062b03a9fffbbad1;
 /**
  * @notice UniswapV2 fork in assembly
  * 
@@ -44,6 +52,8 @@ contract OpenDexPair is OpenDexERC20 {
 
   uint256 private reantrant = 1;
 
+  event Mint(address indexed sender, uint amount0, uint amount1);
+
   modifier reantrancyGuard {
     if (reantrant == 0) revert Reantrant();
     reantrant = 0;
@@ -60,9 +70,9 @@ contract OpenDexPair is OpenDexERC20 {
   function getReserves() public view returns (uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast) {
     assembly {
       mstore(0, sload(reserve0.slot))
-      _reserve0 := shr(144, shl(144, mload(0x00)))
-      _reserve1 := shr(144, shl(32, mload(0x00)))
-      _blockTimestampLast := shr(224, mload(0x00))
+      _reserve0 := shr(0x90, shl(0x90, mload(0x00)))
+      _reserve1 := shr(0x90, shl(0x20, mload(0x00)))
+      _blockTimestampLast := shr(0xE0, mload(0x00))
     }
   }
 
@@ -92,6 +102,10 @@ contract OpenDexPair is OpenDexERC20 {
       // store reserve0, reserv1, blockTimestampLast in the same slot
       mstore(0x20, add(add(shl(112, _balance1), shl(224, mload(0x00))), _balance0))
       sstore(reserve0.slot, mload(0x20))
+      // emit Sync(uint112 reserve0, uint112 reserve1)
+      mstore(0x00, _balance0)
+      mstore(0x20, _balance1)
+      log1(0x00, 0x40, SYNC_HASH)
     }
   }
 
@@ -178,9 +192,9 @@ contract OpenDexPair is OpenDexERC20 {
       balance0_ := getBalance(sload(token0.slot))
       balance1_ := getBalance(sload(token1.slot))
       // retrieve reserve0 & reserve1
-      mstore(0, sload(reserve0.slot))
-      reserve0_ := mload(0x00)
-      reserve1_ := shr(112, mload(0x00))
+      mstore(0x00, sload(reserve0.slot))
+      reserve0_ := shr(144, shl(144, mload(0x00)))
+      reserve1_ := shr(144, shl(32, mload(0x00)))
       // compute calcul amount0 & amoun1
       amount0_ := sub(balance0_, reserve0_)
       amount1_ := sub(balance1_, reserve1_)
@@ -228,6 +242,7 @@ contract OpenDexPair is OpenDexERC20 {
         revert(0,0) // revert need to be set with a error
       }
     }
+
     _mint(to, liquidity);
 
     _update(balance0_, balance1_, reserve0_, reserve1_);
@@ -235,7 +250,10 @@ contract OpenDexPair is OpenDexERC20 {
     assembly {
       if eq(feeOn, 1) {
         sstore(kLast.slot, mul(sload(reserve0.slot), sload(reserve1.slot)))
-        // should emit Mint(msg.sender, amount0, amount1);
+        // emit Mint(to, amount0, amount1);
+        mstore(0x00, amount0_)
+        mstore(0x20, amount1_)
+        log2(0x00, 0x40, MINT_HASH, caller())
       }
     }
   }
@@ -268,9 +286,9 @@ contract OpenDexPair is OpenDexERC20 {
       balance0_ := getBalance(token0_)
       balance1_ := getBalance(token1_)
       // retrieve reserve0 & reserve1
-      mstore(0, sload(reserve0.slot))
-      reserve0_ := mload(0x00)
-      reserve1_ := shr(112, mload(0x00))
+      mstore(0x00, sload(reserve0.slot))
+      reserve0_ := shr(144, shl(144, mload(0x00)))
+      reserve1_ := shr(144, shl(32, mload(0x00)))
       // retrieve balanceOf address this
       mstore(0x00, address())
       mstore(0x20, balanceOf.slot)
@@ -340,6 +358,9 @@ contract OpenDexPair is OpenDexERC20 {
       if eq(feeOn, 1) {
         sstore(kLast.slot, mul(sload(reserve0.slot), sload(reserve1.slot)))
         // should emit Burn(msg.sender, amount0, amount1, to);
+        mstore(0x00, amount0)
+        mstore(0x20, amount1)
+        log3(0x00, 0x60, BURN_HASH, caller(), to)
       }
     }
   }
@@ -349,8 +370,8 @@ contract OpenDexPair is OpenDexERC20 {
     uint112 reserve1_;
     uint256 balance0_;
     uint256 balance1_;
-
-    bytes32 log;
+    uint256 amount0In;
+    uint256 amount1In;
 
     assembly {
       function transfer(token, receiver, amount) {
@@ -414,11 +435,11 @@ contract OpenDexPair is OpenDexERC20 {
       balance1_ := getBalance(token1Addy)
 
       // amount0In
-      let amount0In := 0
+      // let amount0In := 0
       if gt(balance0_, safeSub(reserve0_, amount0Out)) {
         amount0In := safeSub(balance0_, safeSub(reserve0_, amount0Out))
       }
-      let amount1In := 0
+      // let amount1In := 0
       if gt(balance1_, safeSub(reserve1_, amount1Out)) {
         amount1In := safeSub(balance1_, safeSub(reserve1_, amount1Out))
       }
@@ -432,9 +453,19 @@ contract OpenDexPair is OpenDexERC20 {
         revert(0, 0) // revert need to be set with an error K
       }
     }
-
     _update(balance0_, balance1_, reserve0_, reserve1_);
 
-    // should emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
+    assembly {
+      // should emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
+      let slot0x40 := mload(0x40)
+      mstore(0x00, amount0In)
+      mstore(0x20, amount1In)
+      mstore(0x40, amount0Out)
+      mstore(0x60, amount1Out)
+      log3(0x00, 0x80, SWAP_HASH, caller(), to)
+      // restore free memory & zero
+      mstore(0x40, slot0x40)
+      mstore(0x60, 0)
+    }
   }
 }

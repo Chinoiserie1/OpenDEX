@@ -113,6 +113,10 @@ contract TestOpenDexPair is Test {
     // console2.log(Math.sqrtA(250)); // 3515 gas
     // console2.log(Math.min(30, 40));
     // console2.log(Math.minAssembly(30, 40));
+    // console2.logBytes32(keccak256("Mint(address,uint256,uint256)"));
+    // console2.logBytes32(keccak256("Burn(address,uint256,uint256,address)"));
+    // console2.logBytes32(IOpenDexPair.Mint.selector);
+    console2.logBytes32(IOpenDexPair.Sync.selector);
   }
 }
 
