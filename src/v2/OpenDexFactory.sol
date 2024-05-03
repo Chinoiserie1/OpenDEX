@@ -1,9 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+import {console2} from "forge-std/Test.sol";
+
 import {IOpenDexFactory} from "./interface/IOpenDexFactory.sol";
 import {IOpenDexPair} from './interface/IOpenDexPair.sol';
 import {OpenDexPair} from './OpenDexPair.sol';
+
+error IdenticalAddress();
+error AddressZero();
+error PairExist();
+
+bytes32 constant IDENTICAL_ADDRESS = 0x065af08d00000000000000000000000000000000000000000000000000000000;
+bytes32 constant ADDRESS_ZERO = 0x9fabe1c100000000000000000000000000000000000000000000000000000000;
+bytes32 constant PAIR_EXIST = 0x148ea71200000000000000000000000000000000000000000000000000000000;
 
 /**
  * @notice OpenDexFactory from UniswapV2 to convert in assembly
@@ -40,6 +50,46 @@ contract OpenDexFactory is IOpenDexFactory {
     getPair[token1][token0] = pair; // populate mapping in the reverse direction
     allPairs.push(pair);
     emit PairCreated(token0, token1, pair, allPairs.length);
+  }
+
+  function createPairA(address tokenA, address tokenB) external returns (address pair) {
+    bytes memory bytecode = type(OpenDexPair).creationCode;
+    bytes32 log;
+    assembly {
+      if eq(tokenA, tokenB) {
+        mstore(0x00, IDENTICAL_ADDRESS)
+        revert(0x00, 0x04)
+      }
+      let token0 := tokenA
+      let token1 := tokenB
+      if gt(tokenA, tokenB) {
+        token0 := tokenB
+        token1 := tokenA
+      }
+      if iszero(token0) {
+        mstore(0x00, ADDRESS_ZERO)
+        revert(0x00, 0x04)
+      }
+      // retrieve getPair
+      mstore(0x00, token0)
+      mstore(0x20, getPair.slot)
+      mstore(0x20, keccak256(0x00, 0x40))
+      mstore(0x00, token1)
+      mstore(0x00, sload(keccak256(0x00, 0x40)))
+      if gt(mload(0x00), 0) {
+        mstore(0x00, PAIR_EXIST)
+        revert(0x00, 0x04)
+      }
+      let free_ptr := mload(0x40) // load free memory ptr
+      // no need to store length because we dont use it
+      mstore(add(free_ptr, 0x28), token1)
+      mstore(add(free_ptr, 0x14), token0)
+      mstore(0x40, add(free_ptr, 0x60)) // store new free memory ptr
+      let salt := keccak256(add(free_ptr, 0x20), 0x28)
+      // create new pair
+      pair := create2(0, add(bytecode, 32), mload(bytecode), salt)
+    }
+    console2.logBytes32(log);
   }
 
   function setFeeTo(address _feeTo) external {

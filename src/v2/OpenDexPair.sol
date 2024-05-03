@@ -6,6 +6,7 @@ import {console2} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {OpenDexERC20} from "../v1/OpenDexERC20.sol";
 
+import {IOpenDexPairError} from './interface/IOpenDexPairError.sol';
 import './interface/IOpenDexFactory.sol';
 import '../lib/Math.sol';
 
@@ -13,24 +14,34 @@ error Reantrant();
 
 uint256 constant MINIMUM_LIQUIDITY = 10**3;
 
-uint256 constant TRANSFER_SELECTOR = 0xa9059cbb00000000000000000000000000000000000000000000000000000000;
-
-uint256 constant BALANCE_OF_SELECTOR = 0x70a0823100000000000000000000000000000000000000000000000000000000;
-
-uint256 constant FEE_TO_SELECTOR = 0x017e7e5800000000000000000000000000000000000000000000000000000000;
-
 uint112 constant MAX_UINT_112 = 0x0000000000000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
-// first 4 bit keccak256("overflow()")
-bytes32 constant OVERFLOW = 0x004264c300000000000000000000000000000000000000000000000000000000;
+/* FUNCTION SELECTOR */
+
+uint256 constant TRANSFER_SELECTOR = 0xa9059cbb00000000000000000000000000000000000000000000000000000000;
+uint256 constant BALANCE_OF_SELECTOR = 0x70a0823100000000000000000000000000000000000000000000000000000000;
+uint256 constant FEE_TO_SELECTOR = 0x017e7e5800000000000000000000000000000000000000000000000000000000;
+
+/* ERROR */
+
+// first 4 bit keccak256("Overflow()")
+bytes32 constant OVERFLOW = 0x35278d1200000000000000000000000000000000000000000000000000000000;
+bytes32 constant UNDERFLOW = 0xcaccb6d900000000000000000000000000000000000000000000000000000000;
+bytes32 constant INVALID_CALLER = 0x48f5c3ed00000000000000000000000000000000000000000000000000000000;
+bytes32 constant INSUFFICIENT_LIQUIDITY = 0xbb55fd2700000000000000000000000000000000000000000000000000000000;
+bytes32 constant INSUFFICIENT_LIQUIDITY_MINT = 0x4d2b7e1d00000000000000000000000000000000000000000000000000000000;
+bytes32 constant INSUFFICIENT_LIQUIDITY_BURN = 0xb2a72af200000000000000000000000000000000000000000000000000000000;
+bytes32 constant INSUFFICIENT_INPUT_AMOUNT = 0x098fb56100000000000000000000000000000000000000000000000000000000;
+bytes32 constant INSUFFICIENT_OUTPUT_AMOUNT = 0x42301c2300000000000000000000000000000000000000000000000000000000;
+bytes32 constant INVALID_TO = 0x290fa18800000000000000000000000000000000000000000000000000000000;
+bytes32 constant INVALID_VARIABLE_K = 0x9d347b0400000000000000000000000000000000000000000000000000000000;
+
+/* EVENT */
 
 /* keccak256("Mint(address,uint256,uint256)") */
 bytes32 constant MINT_HASH = 0x4c209b5fc8ad50758f13e2e1088ba56a560dff690a1c6fef26394f4c03821c4f;
-/* keccak256("Burn(address,uint256,uint256,address)") */
 bytes32 constant BURN_HASH = 0xdccd412f0b1252819cb1fd330b93224ca42612892bb3f4f789976e6d81936496;
-
 bytes32 constant SWAP_HASH = 0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822;
-
 bytes32 constant SYNC_HASH = 0x1c411e9a96e071241c2f21f7726b17ae89e3cab4c78be50e062b03a9fffbbad1;
 /**
  * @notice UniswapV2 fork in assembly
@@ -79,7 +90,8 @@ contract OpenDexPair is OpenDexERC20 {
   function initialize(address _token0, address _token1) external {
     assembly {
       if iszero(eq(sload(factory.slot), caller())) {
-        revert(0, 0) // revert need to be set with a error
+        mstore(0x00, INVALID_CALLER)
+        revert(0x00, 0x04)
       }
       sstore(token0.slot, _token0)
       sstore(token1.slot, _token1)
@@ -200,7 +212,8 @@ contract OpenDexPair is OpenDexERC20 {
       amount1_ := sub(balance1_, reserve1_)
       // check underflow
       if or(gt(amount0_, balance0_), gt(amount1_, balance1_)) {
-        revert (0, 0) // revert need to be set with a error
+        mstore(0x00, UNDERFLOW)
+        revert (0x00, 0x04)
       }
     }
 
@@ -239,7 +252,8 @@ contract OpenDexPair is OpenDexERC20 {
         liquidity := min(div(mul(amount0_, totalSupply_), reserve0_), div(mul(amount1_, totalSupply_), reserve1_))
       }
       if iszero(liquidity) {
-        revert(0,0) // revert need to be set with a error
+        mstore(0x00, INSUFFICIENT_LIQUIDITY_MINT)
+        revert(0x00, 0x04)
       }
     }
 
@@ -316,7 +330,8 @@ contract OpenDexPair is OpenDexERC20 {
       amount1 := div(mload(0x20), mload(0x00))
       // check if sufficient liquidity
       if or(iszero(amount0), iszero(amount1)) {
-        revert(0, 0) // revert need to be set with an error
+        mstore(0x00, INSUFFICIENT_LIQUIDITY_BURN)
+        revert(0x00, 0x04) // revert need to be set with an error
       }
     }
 
@@ -398,7 +413,8 @@ contract OpenDexPair is OpenDexERC20 {
       function safeSub(x, y) -> z {
         z := sub(x, y)
         if gt(z, x) {
-          revert(0, 0) // revert need to be set with an error underflow
+          mstore(0x00, UNDERFLOW)
+          revert(0, 0)
         }
       }
       function safeMul(x, y) -> z {
@@ -410,19 +426,22 @@ contract OpenDexPair is OpenDexERC20 {
       }
 
       if and(iszero(amount0Out), iszero(amount1Out)) {
-        revert (0, 0) // revert need to be set with an error
+        mstore(0x00, INSUFFICIENT_OUTPUT_AMOUNT)
+        revert (0x00, 0x04)
       }
       // retrieve reserve0 & reserve1
       mstore(0x00, sload(reserve0.slot))
       reserve0_ := shr(144, shl(144, mload(0x00)))
       reserve1_ := shr(144, shl(32, mload(0x00)))
       if or(gt(amount0Out, reserve0_), gt(amount1Out, reserve1_)) {
-        revert(0, 0) // revert need to be set with an error
+        mstore(0x00, INSUFFICIENT_LIQUIDITY)
+        revert(0x00, 0x04)
       }
       let token0Addy := sload(token0.slot)
       let token1Addy := sload(token1.slot)
       if or(eq(token0Addy, to), eq(token1Addy, to)) {
-        revert(0, 0) // revert need to be set with an error
+        mstore(0x00, INVALID_TO)
+        revert(0x00, 0x04)
       }
       if gt(amount0Out, 0) {
         transfer(token0Addy, to, amount0Out)
@@ -444,13 +463,15 @@ contract OpenDexPair is OpenDexERC20 {
         amount1In := safeSub(balance1_, safeSub(reserve1_, amount1Out))
       }
       if and(iszero(amount0In), iszero(amount1In)) {
-        revert(0, 0) // revert need to be set with an error INSUFFICIENT_INPUT_AMOUNT
+        mstore(0x00, INSUFFICIENT_INPUT_AMOUNT)
+        revert(0x00, 0x04)
       }
 
       mstore(0x00, safeSub(safeMul(balance0_, 1000), safeMul(amount0In, 3))) // balance0Adjusted
       mstore(0x20, safeSub(safeMul(balance1_, 1000), safeMul(amount1In, 3))) // balance1Adjusted
       if lt(safeMul(mload(0x00), mload(0x20)), safeMul(safeMul(reserve0_, reserve1_), exp(1000, 2))) {
-        revert(0, 0) // revert need to be set with an error K
+        mstore(0x00, INVALID_VARIABLE_K)
+        revert(0x00, 0x04)
       }
     }
     _update(balance0_, balance1_, reserve0_, reserve1_);
@@ -496,7 +517,8 @@ contract OpenDexPair is OpenDexERC20 {
       function safeSub(x, y) -> z {
         z := sub(x, y)
         if gt(z, x) {
-          revert(0, 0) // revert need to be set with an error underflow
+          mstore(0x00, UNDERFLOW)
+          revert(0x00, 0x04)
         }
       }
       let token0_ := sload(token0.slot)

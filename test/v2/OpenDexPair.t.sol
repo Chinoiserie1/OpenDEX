@@ -5,6 +5,7 @@ import {Test, console2} from "forge-std/Test.sol";
 
 import '../../src/v2/interface/IOpenDexFactory.sol';
 import '../../src/v2/interface/IOpenDexPair.sol';
+import '../../src/v2/interface/IOpenDexPairError.sol';
 
 import '../../src/v2/OpenDexFactory.sol';
 import '../../src/v2/OpenDexPair.sol';
@@ -115,6 +116,7 @@ contract TestOpenDexPair is Test {
   }
 
   function test() public {
+    console2.logBytes4(IOpenDexPairError.InsufficientLiquidity.selector);
     // console2.logBytes4(bytes4(keccak256(bytes('transfer(address,uint256)'))));
     // console2.logBytes4(IOpenDexFactory.feeTo.selector);
     // pair.getReserves();
