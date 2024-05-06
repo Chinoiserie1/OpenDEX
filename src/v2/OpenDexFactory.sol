@@ -10,10 +10,12 @@ import {OpenDexPair} from './OpenDexPair.sol';
 error IdenticalAddress();
 error AddressZero();
 error PairExist();
+error InvalidCaller();
 
 bytes32 constant IDENTICAL_ADDRESS = 0x065af08d00000000000000000000000000000000000000000000000000000000;
 bytes32 constant ADDRESS_ZERO = 0x9fabe1c100000000000000000000000000000000000000000000000000000000;
 bytes32 constant PAIR_EXIST = 0x148ea71200000000000000000000000000000000000000000000000000000000;
+bytes32 constant INVALID_CALLER = 0x48f5c3ed00000000000000000000000000000000000000000000000000000000;
 
 bytes32 constant INITIALIZE_SELECTOR = 0x485cc95500000000000000000000000000000000000000000000000000000000;
 
@@ -32,7 +34,9 @@ contract OpenDexFactory is IOpenDexFactory {
   address[] public allPairs;
 
   constructor(address _feeToSetter) {
-    feeToSetter = _feeToSetter;
+    assembly {
+      sstore(feeToSetter.slot, _feeToSetter)
+    }
   }
 
   function allPairsLength() external view returns (uint256) {
@@ -44,23 +48,6 @@ contract OpenDexFactory is IOpenDexFactory {
   }
 
   function createPair(address tokenA, address tokenB) external returns (address pair) {
-    require(tokenA != tokenB, 'UniswapV2: IDENTICAL_ADDRESSES');
-    (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-    require(token0 != address(0), 'UniswapV2: ZERO_ADDRESS');
-    require(getPair[token0][token1] == address(0), 'UniswapV2: PAIR_EXISTS'); // single check is sufficient
-    bytes memory bytecode = type(OpenDexPair).creationCode;
-    bytes32 salt = keccak256(abi.encodePacked(token0, token1));
-    assembly {
-      pair := create2(0, add(bytecode, 32), mload(bytecode), salt)
-    }
-    IOpenDexPair(pair).initialize(token0, token1);
-    getPair[token0][token1] = pair;
-    getPair[token1][token0] = pair; // populate mapping in the reverse direction
-    allPairs.push(pair);
-    emit PairCreated(token0, token1, pair, allPairs.length);
-  }
-
-  function createPairA(address tokenA, address tokenB) external returns (address pair) {
     bytes memory bytecode = type(OpenDexPair).creationCode;
     bytes32 log;
     assembly {
@@ -132,12 +119,22 @@ contract OpenDexFactory is IOpenDexFactory {
   }
 
   function setFeeTo(address _feeTo) external {
-    require(msg.sender == feeToSetter, 'UniswapV2: FORBIDDEN');
-    feeTo = _feeTo;
+    assembly {
+      if iszero(eq(caller(), sload(feeToSetter.slot))) {
+        mstore(0x00, INVALID_CALLER)
+        revert(0x00, 0x04)
+      }
+      sstore(feeTo.slot, _feeTo)
+    }
   }
 
   function setFeeToSetter(address _feeToSetter) external {
-    require(msg.sender == feeToSetter, 'UniswapV2: FORBIDDEN');
-    feeToSetter = _feeToSetter;
+    assembly {
+      if iszero(eq(caller(), sload(feeToSetter.slot))) {
+        mstore(0x00, INVALID_CALLER)
+        revert(0x00, 0x04)
+      }
+      sstore(feeToSetter.slot, _feeToSetter)
+    }
   }
 }
