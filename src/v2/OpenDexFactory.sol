@@ -15,6 +15,8 @@ bytes32 constant IDENTICAL_ADDRESS = 0x065af08d000000000000000000000000000000000
 bytes32 constant ADDRESS_ZERO = 0x9fabe1c100000000000000000000000000000000000000000000000000000000;
 bytes32 constant PAIR_EXIST = 0x148ea71200000000000000000000000000000000000000000000000000000000;
 
+bytes32 constant INITIALIZE_SELECTOR = 0x485cc95500000000000000000000000000000000000000000000000000000000;
+
 /**
  * @notice OpenDexFactory from UniswapV2 to convert in assembly
  * 
@@ -88,6 +90,27 @@ contract OpenDexFactory is IOpenDexFactory {
       let salt := keccak256(add(free_ptr, 0x20), 0x28)
       // create new pair
       pair := create2(0, add(bytecode, 32), mload(bytecode), salt)
+      // call initialize
+      let slot0x40 := mload(0x40)
+      mstore(0x00, INITIALIZE_SELECTOR)
+      mstore(0x04, token0)
+      mstore(0x24, token1)
+      let callstatus := call(gas(), pair, 0, 0x00, 0x44, 0x00, 0x20)
+      if iszero(callstatus) {
+        revert(0x00, calldatasize())
+      }
+      mstore(0x40, slot0x40) //  restore free memory ptr
+      // populate mapping
+      mstore(0x00, token0)
+      mstore(0x20, getPair.slot)
+      mstore(0x20, keccak256(0x00, 0x40))
+      mstore(0x00, token1)
+      sstore(keccak256(0x00, 0x40), pair)
+      mstore(0x00, token1)
+      mstore(0x20, getPair.slot)
+      mstore(0x20, keccak256(0x00, 0x40))
+      mstore(0x00, token0)
+      sstore(keccak256(0x00, 0x40), pair)
     }
     console2.logBytes32(log);
   }
