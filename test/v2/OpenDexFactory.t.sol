@@ -65,6 +65,7 @@ contract TestOpenDexFactory is Test {
 
   function test() public {
     // console2.logBytes4(IOpenDexPair.initialize.selector);
-    factory.createPairA(address(testETH), address(testDAI));
+    factory.createPair(address(testETH), address(testDAI));
+    factory.allPairsLength();
   }
 }

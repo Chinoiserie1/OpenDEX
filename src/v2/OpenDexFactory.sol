@@ -33,8 +33,12 @@ contract OpenDexFactory is IOpenDexFactory {
     feeToSetter = _feeToSetter;
   }
 
-  function allPairsLength() external view returns (uint) {
-    return allPairs.length;
+  function allPairsLength() external view returns (uint256) {
+    uint256 length;
+    assembly {
+      length := sload(allPairs.slot)
+    }
+    return length;
   }
 
   function createPair(address tokenA, address tokenB) external returns (address pair) {
@@ -99,8 +103,8 @@ contract OpenDexFactory is IOpenDexFactory {
       if iszero(callstatus) {
         revert(0x00, calldatasize())
       }
-      mstore(0x40, slot0x40) //  restore free memory ptr
-      // populate mapping
+      mstore(0x40, slot0x40) // restore free memory ptr
+      // populate mapping getPair
       mstore(0x00, token0)
       mstore(0x20, getPair.slot)
       mstore(0x20, keccak256(0x00, 0x40))
@@ -111,6 +115,11 @@ contract OpenDexFactory is IOpenDexFactory {
       mstore(0x20, keccak256(0x00, 0x40))
       mstore(0x00, token0)
       sstore(keccak256(0x00, 0x40), pair)
+      // populate array allPair
+      let length := sload(allPairs.slot)
+      mstore(0x00, allPairs.slot)
+      let array_ptr := keccak256(0x00, 0x20)
+      sstore(add(array_ptr, length), pair)
     }
     console2.logBytes32(log);
   }
