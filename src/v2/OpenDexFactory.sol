@@ -17,6 +17,8 @@ bytes32 constant PAIR_EXIST = 0x148ea7120000000000000000000000000000000000000000
 
 bytes32 constant INITIALIZE_SELECTOR = 0x485cc95500000000000000000000000000000000000000000000000000000000;
 
+bytes32 constant PAIR_CREATED_HASH = 0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9;
+
 /**
  * @notice OpenDexFactory from UniswapV2 to convert in assembly
  * 
@@ -120,6 +122,11 @@ contract OpenDexFactory is IOpenDexFactory {
       mstore(0x00, allPairs.slot)
       let array_ptr := keccak256(0x00, 0x20)
       sstore(add(array_ptr, length), pair)
+      sstore(allPairs.slot, add(length, 1))
+      // emit PairCreated
+      mstore(0x00, pair)
+      mstore(0x20, length)
+      log3(0x00, 0x40, PAIR_CREATED_HASH, token0, token1)
     }
     console2.logBytes32(log);
   }
