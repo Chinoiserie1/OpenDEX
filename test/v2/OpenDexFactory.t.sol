@@ -4,7 +4,7 @@ pragma solidity ^0.8.19;
 import {Test, console2} from "forge-std/Test.sol";
 
 import '../../src/v2/OpenDexFactory.sol';
-import '../../src/v2/OpenDexPair.sol';
+// import '../../src/v2/OpenDexPair.sol';
 import {TestERC20} from '../../src/testToken/TestERC20.sol';
 
 import '../../src/v2/interface/IOpenDexFactoryError.sol';
@@ -63,9 +63,8 @@ contract TestOpenDexFactory is Test {
     // (token0, token1) = address(testETH) < address(testDAI) ? (address(testETH), address(testDAI)) : (address(testDAI), address(testETH));
   }
 
-  function test() public {
-    console2.logBytes32(IOpenDexFactory.PairCreated.selector);
-    factory.createPairA(address(testETH), address(testDAI));
-    factory.allPairsLength();
+  function testCreatePair() public {
+    address pair = factory.createPair(address(testETH), address(testDAI));
+    require(pair != address(0), "fail create pair");
   }
 }

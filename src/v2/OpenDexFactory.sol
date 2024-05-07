@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {console2} from "forge-std/Test.sol";
-
+import {INVALID_CALLER} from './lib/OpenDexConstants.sol';
+import './lib/OpenDexFactoryConstants.sol';
 import {IOpenDexFactory} from "./interface/IOpenDexFactory.sol";
 import {IOpenDexPair} from './interface/IOpenDexPair.sol';
 import {OpenDexPair} from './OpenDexPair.sol';
@@ -11,15 +11,6 @@ error IdenticalAddress();
 error AddressZero();
 error PairExist();
 error InvalidCaller();
-
-bytes32 constant IDENTICAL_ADDRESS = 0x065af08d00000000000000000000000000000000000000000000000000000000;
-bytes32 constant ADDRESS_ZERO = 0x9fabe1c100000000000000000000000000000000000000000000000000000000;
-bytes32 constant PAIR_EXIST = 0x148ea71200000000000000000000000000000000000000000000000000000000;
-bytes32 constant INVALID_CALLER = 0x48f5c3ed00000000000000000000000000000000000000000000000000000000;
-
-bytes32 constant INITIALIZE_SELECTOR = 0x485cc95500000000000000000000000000000000000000000000000000000000;
-
-bytes32 constant PAIR_CREATED_HASH = 0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9;
 
 /**
  * @notice OpenDexFactory from UniswapV2 to convert in assembly
@@ -49,7 +40,6 @@ contract OpenDexFactory is IOpenDexFactory {
 
   function createPair(address tokenA, address tokenB) external returns (address pair) {
     bytes memory bytecode = type(OpenDexPair).creationCode;
-    bytes32 log;
     assembly {
       if eq(tokenA, tokenB) {
         mstore(0x00, IDENTICAL_ADDRESS)
@@ -115,7 +105,6 @@ contract OpenDexFactory is IOpenDexFactory {
       mstore(0x20, length)
       log3(0x00, 0x40, PAIR_CREATED_HASH, token0, token1)
     }
-    console2.logBytes32(log);
   }
 
   function setFeeTo(address _feeTo) external {
