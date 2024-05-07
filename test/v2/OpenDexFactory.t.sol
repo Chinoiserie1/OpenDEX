@@ -79,6 +79,11 @@ contract TestOpenDexFactory is Test {
     factory.createPair(address(0), address(testDAI));
   }
 
+  function testCreatePairShouldFailWithSameAddress() public {
+    vm.expectRevert(IdenticalAddress.selector);
+    factory.createPair(address(testDAI), address(testDAI));
+  }
+
   function testGetAllPairLength() public {
     uint256 lengthBefore = factory.allPairsLength();
     require(lengthBefore == 0, "fail get length before");
