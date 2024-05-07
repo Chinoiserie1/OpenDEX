@@ -68,6 +68,19 @@ contract TestOpenDexFactory is Test {
     require(newPair != address(0), "fail create pair");
   }
 
+  function testCreateTwoDifferentPair() public {
+    TestERC20 tokenC = new TestERC20();
+    TestERC20 tokenD = new TestERC20();
+    address newPair = factory.createPair(address(testETH), address(testDAI));
+    address newPair2 = factory.createPair(address(tokenC), address(tokenD));
+    uint256 lengthAfter = factory.allPairsLength();
+    require(lengthAfter == 2, "fail get length after");
+    address expectPair = factory.allPairs(0);
+    require(newPair == expectPair, "fail get pair");
+    expectPair = factory.allPairs(1);
+    require(newPair2 == expectPair, "fail get pair");
+  }
+
   function testCreatePairShouldFailCreateSamePair() public {
     factory.createPair(address(testETH), address(testDAI));
     vm.expectRevert(PairExist.selector);
