@@ -64,7 +64,21 @@ contract TestOpenDexFactory is Test {
   }
 
   function testCreatePair() public {
-    address pair = factory.createPair(address(testETH), address(testDAI));
-    require(pair != address(0), "fail create pair");
+    address newPair = factory.createPair(address(testETH), address(testDAI));
+    require(newPair != address(0), "fail create pair");
+  }
+
+  function testCreatePairShouldFailCreateSamePair() public {
+    factory.createPair(address(testETH), address(testDAI));
+    vm.expectRevert(PairExist.selector);
+    factory.createPair(address(testETH), address(testDAI));
+  }
+
+  function testGetAllPairLength() public {
+    uint256 lengthBefore = factory.allPairsLength();
+    require(lengthBefore == 0, "fail get length before");
+    factory.createPair(address(testETH), address(testDAI));
+    uint256 lengthAfter = factory.allPairsLength();
+    require(lengthAfter == 1, "fail get length after");
   }
 }
