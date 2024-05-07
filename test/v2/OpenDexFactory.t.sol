@@ -91,4 +91,10 @@ contract TestOpenDexFactory is Test {
     uint256 lengthAfter = factory.allPairsLength();
     require(lengthAfter == 1, "fail get length after");
   }
+
+  function testGetAllPair() public {
+    address newPair = factory.createPair(address(testETH), address(testDAI));
+    address expectPair = factory.allPairs(0);
+    require(newPair == expectPair, "fail get pair");
+  }
 }
