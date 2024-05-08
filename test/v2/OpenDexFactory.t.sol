@@ -4,7 +4,6 @@ pragma solidity ^0.8.19;
 import {Test, console2} from "forge-std/Test.sol";
 
 import '../../src/v2/OpenDexFactory.sol';
-// import '../../src/v2/OpenDexPair.sol';
 import {TestERC20} from '../../src/testToken/TestERC20.sol';
 
 import '../../src/v2/interface/IOpenDexFactoryError.sol';
