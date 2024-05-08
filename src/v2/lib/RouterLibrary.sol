@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+import {IOpenDexPair} from '../interface/IOpenDexPair.sol';
 import '../OpenDexPair.sol';
 
 import {IDENTICAL_ADDRESS, ADDRESS_ZERO} from './OpenDexFactoryConstants.sol';
@@ -31,6 +32,7 @@ library RouterLibrary {
     }
   }
 
+  // create2 = keccak256(0xff ++ address ++ salt ++ keccak256(bytecode))
   function pairFor(address factory, address tokenA, address tokenB) internal pure returns (address pair) {
     (address token0, address token1) = sortTokens(tokenA, tokenB);
     assembly {
@@ -46,7 +48,54 @@ library RouterLibrary {
       let start := add(ptr, 0x0b)
       mstore8(start, 0xff)
       pair := keccak256(start, 85)
-      mstore(0x40, add(free_ptr, 0xA0)) // store new free memory ptr
+      mstore(0x40, add(free_ptr, 0xC0)) // store new free memory ptr
     }
+  }
+
+  function getReserves(address factory, address tokenA, address tokenB) internal view returns (uint reserveA, uint reserveB) {
+    (address token0,) = sortTokens(tokenA, tokenB);
+    (uint reserve0, uint reserve1,) = IOpenDexPair(pairFor(factory, tokenA, tokenB)).getReserves();
+    (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
+  }
+
+  function quote(uint amountA, uint reserveA, uint reserveB) internal pure returns (uint amountB) {
+    assembly {
+      function safeMul(x, y) -> z {
+        z := mul(x, y)
+        if lt(z, x) {
+          mstore(0x00, OVERFLOW)
+          revert(0x00, 0x04)
+        }
+      }
+      if iszero(amountA) {
+        // error INSUFFICIENT_AMOUNT
+        revert(0, 0)
+      }
+      if or(iszero(reserveA), iszero(reserveB)) {
+        // error INSUFFICIENT_LIQUIDITY
+        revert(0, 0)
+      }
+      amountB := div(safeMul(amountA, reserveB), reserveA)
+    }
+  }
+
+  function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
+    assembly {
+      if iszero(amountIn) {
+        // error INSUFFICIENT_INPUT_AMOUNT
+        revert(0, 0)
+      }
+      if or(iszero(reserveIn), iszero(reserveOut)) {
+        // error INSUFFICIENT_LIQUIDITY
+        revert(0, 0)
+      }
+      
+    }
+    // require(amountIn > 0, 'UniswapV2Library: INSUFFICIENT_INPUT_AMOUNT');
+    // require(reserveIn > 0 && reserveOut > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
+    // uint amountInWithFee = amountIn.mul(997);
+    // uint numerator = amountInWithFee.mul(reserveOut);
+    // uint denominator = reserveIn.mul(1000).add(amountInWithFee);
+    // amountOut = numerator / denominator;
   }
 }
