@@ -81,6 +81,21 @@ library RouterLibrary {
 
   function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
     assembly {
+      function safeMul(x, y) -> z {
+        z := mul(x, y)
+        if lt(z, x) {
+          mstore(0x00, OVERFLOW)
+          revert(0x00, 0x04)
+        }
+      }
+      function safeAdd(x, y) -> z {
+        z := add(x, y)
+        if lt(z, x) {
+          mstore(0x00, OVERFLOW)
+          revert(0x00, 0x04)
+        }
+      }
+
       if iszero(amountIn) {
         // error INSUFFICIENT_INPUT_AMOUNT
         revert(0, 0)
@@ -89,13 +104,10 @@ library RouterLibrary {
         // error INSUFFICIENT_LIQUIDITY
         revert(0, 0)
       }
-      
+      let amountInWithFee := safeMul(amountIn, 997)
+      let numerator := safeMul(amountInWithFee, reserveOut)
+      let denominator := safeAdd(safeMul(reserveIn, 1000), amountInWithFee)
+      amountOut := div(numerator, denominator)
     }
-    // require(amountIn > 0, 'UniswapV2Library: INSUFFICIENT_INPUT_AMOUNT');
-    // require(reserveIn > 0 && reserveOut > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
-    // uint amountInWithFee = amountIn.mul(997);
-    // uint numerator = amountInWithFee.mul(reserveOut);
-    // uint denominator = reserveIn.mul(1000).add(amountInWithFee);
-    // amountOut = numerator / denominator;
   }
 }
