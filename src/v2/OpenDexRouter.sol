@@ -22,7 +22,6 @@ contract OpenDexRouter {
     uint256 amountAMin,
     uint256 amountBMin
   ) internal virtual returns (uint256 amountA, uint256 amountB) {
-    // create the pair if it doesn't exist yet
     assembly {
       function quote(amountX, reserveX, reserveY) -> amountY {
         function safeMul(x, y) -> z {
@@ -69,8 +68,7 @@ contract OpenDexRouter {
       }
       let reserveA := mload(0x00)
       let reserveB := mload(0x20)
-      // if and(iszero(reserveA), iszero(reserveB)) {
-      // }
+      // get amountA and amountB
       switch and(iszero(reserveA), iszero(reserveB))
       case 1 {
         amountA := amountADesired
