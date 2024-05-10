@@ -7,6 +7,8 @@ import '../../src/v2/OpenDexRouter.sol';
 import '../../src/v2/OpenDexFactory.sol';
 import '../../src/v2/OpenDexPair.sol';
 import {TestERC20} from '../../src/testToken/TestERC20.sol';
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 
 contract TestOpenDexRouter is Test {
   OpenDexFactory public factory;
@@ -54,11 +56,15 @@ contract TestOpenDexRouter is Test {
   }
 
   function test() public {
-    console2.logBytes32(OpenDexPair.getReserves.selector);
-    address pair = factory.createPair(address(testETH), address(testDAI));
-    testETH.transfer(address(pair), 1 ether);
-    testDAI.transfer(address(pair), 2 ether);
-    OpenDexPair(pair).mint(user1);
-    router.addLiquidity(address(testETH), address(testDAI), 10 ether, 10 ether, 8 ether, 8 ether, owner, 1 days);
+    console2.logBytes32(ERC20.transferFrom.selector);
+    // address pair = factory.createPair(address(testETH), address(testDAI));
+    // testETH.transfer(address(pair), 1 ether);
+    // testDAI.transfer(address(pair), 2 ether);
+    // OpenDexPair(pair).mint(user1);
+    testETH.approve(address(router), 100 ether);
+    testDAI.approve(address(router), 100 ether);
+    testETH.allowance(owner, address(router));
+    testDAI.allowance(owner, address(router));
+    router.addLiquidity(address(testETH), address(testDAI), 10 ether, 10 ether, 1 ether, 1 ether, owner, 1 days);
   }
 }

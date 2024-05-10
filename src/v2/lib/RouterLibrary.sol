@@ -47,7 +47,7 @@ library RouterLibrary {
       mstore(ptr, factory)
       let start := add(ptr, 0x0b)
       mstore8(start, 0xff)
-      pair := keccak256(start, 85)
+      pair := shr(0x60, shl(0x60, keccak256(start, 85))) // change first 24 bit to zero
       mstore(0x40, add(free_ptr, 0xC0)) // store new free memory ptr
     }
   }

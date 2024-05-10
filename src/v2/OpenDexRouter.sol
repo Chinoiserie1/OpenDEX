@@ -6,9 +6,21 @@ import './lib/RouterLibrary.sol';
 bytes32 constant GET_PAIR_SELECTOR = 0xe6a4390500000000000000000000000000000000000000000000000000000000;
 bytes32 constant CREATE_PAIR_SELECTOR = 0xc9c6539600000000000000000000000000000000000000000000000000000000;
 bytes32 constant GET_RESERVES_SELECTOR = 0x0902f1ac00000000000000000000000000000000000000000000000000000000;
+bytes32 constant TRANSFER_FROM_SELECTOR = 0x23b872dd00000000000000000000000000000000000000000000000000000000;
+bytes32 constant MINT_SELECTOR = 0x6a62784200000000000000000000000000000000000000000000000000000000;
 
 contract OpenDexRouter {
   address factory;
+
+  modifier ensure(uint deadline) {
+    assembly {
+      if lt(deadline, timestamp()) {
+        // error EXPIRED
+        revert(0, 0)
+      }
+    }
+    _;
+  }
 
   constructor(address _factory) {
     factory = _factory;
@@ -23,6 +35,7 @@ contract OpenDexRouter {
     uint256 amountBMin
   ) internal virtual returns (uint256 amountA, uint256 amountB) {
     assembly {
+      // see src/v2/lib/RouterLibrary.sol
       function quote(amountX, reserveX, reserveY) -> amountY {
         function safeMul(x, y) -> z {
           z := mul(x, y)
@@ -113,10 +126,42 @@ contract OpenDexRouter {
     address to,
     uint deadline
   ) external virtual returns (uint amountA, uint amountB, uint liquidity) {
+    // can't use modifier to prevent Stack too deep error
+    assembly {
+      if lt(deadline, timestamp()) {
+        // error EXPIRED
+        revert(0, 0)
+      }
+    }
+
     (amountA, amountB) = _addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin);
-    // bytes32 initcode = RouterLibrary.initHash();
-    // console2.logBytes32(initcode);
-    // console2.log(factory);
-    // console2.log(RouterLibrary.pairFor(factory, tokenA, tokenB));
+    address pair = RouterLibrary.pairFor(factory, tokenA, tokenB);
+
+    assembly {
+      function transferFrom(token, from, receiver, amount) {
+        let slot0x40 := mload(0x40)
+        mstore(0x00, TRANSFER_FROM_SELECTOR)
+        mstore(0x04, from)
+        mstore(0x24, receiver)
+        mstore(0x44, amount)
+        let callstatus := call(gas(), token, 0, 0x00, 0x64, 0x00, 0x20)
+        if iszero(callstatus) {
+          revert(0, calldatasize())
+        }
+        mstore(0x40, slot0x40)
+        mstore(0x60, 0)
+      }
+
+      transferFrom(tokenA, caller(), pair, amountA)
+      transferFrom(tokenB, caller(), pair, amountB)
+
+      mstore(0x00, MINT_SELECTOR)
+      mstore(0x04, to)
+      let callstatus := call(gas(), pair, 0, 0x00, 0x24, 0x00, 0x20)
+       if iszero(callstatus) {
+        revert(0, calldatasize())
+      }
+      liquidity := mload(0x00)
+    }
   }
 }
