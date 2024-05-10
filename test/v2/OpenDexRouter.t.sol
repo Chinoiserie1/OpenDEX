@@ -5,6 +5,7 @@ import {Test, console2} from "forge-std/Test.sol";
 
 import '../../src/v2/OpenDexRouter.sol';
 import '../../src/v2/OpenDexFactory.sol';
+import '../../src/v2/OpenDexPair.sol';
 import {TestERC20} from '../../src/testToken/TestERC20.sol';
 
 contract TestOpenDexRouter is Test {
@@ -53,8 +54,11 @@ contract TestOpenDexRouter is Test {
   }
 
   function test() public {
-    // console2.logBytes4(factory.createPair.selector);
-    // address pair = factory.createPair(address(testETH), address(testDAI));
+    console2.logBytes32(OpenDexPair.getReserves.selector);
+    address pair = factory.createPair(address(testETH), address(testDAI));
+    testETH.transfer(address(pair), 1 ether);
+    testDAI.transfer(address(pair), 2 ether);
+    OpenDexPair(pair).mint(user1);
     router.addLiquidity(address(testETH), address(testDAI), 10 ether, 10 ether, 8 ether, 8 ether, owner, 1 days);
   }
 }
