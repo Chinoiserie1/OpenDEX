@@ -53,7 +53,8 @@ contract TestOpenDexRouter is Test {
   }
 
   function test() public {
-    address pair = factory.createPair(address(testETH), address(testDAI));
+    // console2.logBytes4(factory.createPair.selector);
+    // address pair = factory.createPair(address(testETH), address(testDAI));
     router.addLiquidity(address(testETH), address(testDAI), 10 ether, 10 ether, 8 ether, 8 ether, owner, 1 days);
   }
 }
