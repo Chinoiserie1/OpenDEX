@@ -110,4 +110,35 @@ library RouterLibrary {
       amountOut := div(numerator, denominator)
     }
   }
+
+  function getAmountIn(uint amountOut, uint reserveIn, uint reserveOut) internal pure returns (uint amountIn) {
+    assembly {
+      function safeMul(x, y) -> z {
+        z := mul(x, y)
+        if lt(z, x) {
+          mstore(0x00, OVERFLOW)
+          revert(0x00, 0x04)
+        }
+      }
+      function safeSub(x, y) -> z {
+        z := sub(x, y)
+        if gt(z, x) {
+          mstore(0x00, UNDERFLOW)
+          revert(0x00, 0x04)
+        }
+      }
+
+      if iszero(amountOut) {
+        // error INSUFFICIENT_OUTPUT_AMOUNT
+        revert(0, 0)
+      }
+      if or(iszero(reserveIn), iszero(reserveOut)) {
+        // error INSUFFICIENT_LIQUIDITY
+        revert(0, 0)
+      }
+      let numerator := safeMul(safeMul(reserveIn, amountOut), 1000)
+      let denominator := safeMul(safeSub(reserveOut, amountOut), 997)
+      amountIn := add(div(numerator, denominator), 1)
+    }
+  }
 }
