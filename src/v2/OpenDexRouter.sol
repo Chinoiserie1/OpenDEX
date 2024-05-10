@@ -23,7 +23,9 @@ contract OpenDexRouter {
   }
 
   constructor(address _factory) {
-    factory = _factory;
+    assembly {
+      sstore(factory.slot, _factory)
+    }
   }
 
   function _addLiquidity(
@@ -163,5 +165,35 @@ contract OpenDexRouter {
       }
       liquidity := mload(0x00)
     }
+  }
+
+  function removeLiquidity(
+    address tokenA,
+    address tokenB,
+    uint liquidity,
+    uint amountAMin,
+    uint amountBMin,
+    address to,
+    uint deadline
+  ) public virtual ensure(deadline) returns (uint amountA, uint amountB) {
+    address pair = RouterLibrary.pairFor(factory, tokenA, tokenB);
+    assembly {
+      let slot0x40 := mload(0x40)
+      mstore(0x00, TRANSFER_FROM_SELECTOR)
+      mstore(0x04, caller())
+      mstore(0x24, pair)
+      mstore(0x44, liquidity)
+      let callstatus := call(gas(), pair, 0, 0x00, 0x64, 0x00, 0x20)
+      if iszero(callstatus) {
+        revert(0, calldatasize())
+      }
+      
+    }
+    // IUniswapV2Pair(pair).transferFrom(msg.sender, pair, liquidity); // send liquidity to pair
+    // (uint amount0, uint amount1) = IUniswapV2Pair(pair).burn(to);
+    // (address token0,) = UniswapV2Library.sortTokens(tokenA, tokenB);
+    // (amountA, amountB) = tokenA == token0 ? (amount0, amount1) : (amount1, amount0);
+    // require(amountA >= amountAMin, 'UniswapV2Router: INSUFFICIENT_A_AMOUNT');
+    // require(amountB >= amountBMin, 'UniswapV2Router: INSUFFICIENT_B_AMOUNT');
   }
 }
