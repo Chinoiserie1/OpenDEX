@@ -226,6 +226,8 @@ contract OpenDexRouter {
         // error INSUFFICIENT_B_AMOUNT
         revert(0, 0)
       }
+      mstore(0x40, slot0x40) // restore free memory ptr
+      mstore(0x60, 0) // restore zero slot
     }
   }
 }
