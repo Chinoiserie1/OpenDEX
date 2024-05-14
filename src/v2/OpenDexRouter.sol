@@ -8,6 +8,7 @@ bytes32 constant CREATE_PAIR_SELECTOR = 0xc9c65396000000000000000000000000000000
 bytes32 constant GET_RESERVES_SELECTOR = 0x0902f1ac00000000000000000000000000000000000000000000000000000000;
 bytes32 constant TRANSFER_FROM_SELECTOR = 0x23b872dd00000000000000000000000000000000000000000000000000000000;
 bytes32 constant MINT_SELECTOR = 0x6a62784200000000000000000000000000000000000000000000000000000000;
+bytes32 constant BURN_SELECTOR = 0x23b872dd00000000000000000000000000000000000000000000000000000000;
 
 contract OpenDexRouter {
   address factory;
@@ -178,7 +179,8 @@ contract OpenDexRouter {
   ) public virtual ensure(deadline) returns (uint amountA, uint amountB) {
     address pair = RouterLibrary.pairFor(factory, tokenA, tokenB);
     assembly {
-      let slot0x40 := mload(0x40)
+      let slot0x40 := mload(0x40) // store free memory ptr
+      // call transferFrom to send liquidity to pair
       mstore(0x00, TRANSFER_FROM_SELECTOR)
       mstore(0x04, caller())
       mstore(0x24, pair)
@@ -187,13 +189,43 @@ contract OpenDexRouter {
       if iszero(callstatus) {
         revert(0, calldatasize())
       }
-      
+      // call burn and get amount0 and amount1
+      mstore(0x00, BURN_SELECTOR)
+      mstore(0x04, to)
+      callstatus := call(gas(), pair, 0, 0x00, 0x24, 0x00, 0x40)
+      if iszero(callstatus) {
+        revert(0, calldatasize())
+      }
+      let amount0 := mload(0x00)
+      let amount1 := mload(0x20)
+      // sort tokens
+      if eq(tokenA, tokenB) {
+        mstore(0x00, IDENTICAL_ADDRESS)
+        revert(0x00, 0x04)
+      }
+      let token0 := tokenA
+      let token1 := tokenB
+      amountA := amount0
+      amountB := amount1
+      if gt(tokenA, tokenB) {
+        token0 := tokenB
+        token1 := tokenA
+        amountA := amount1
+        amountB := amount0
+      }
+      if iszero(token0) {
+        mstore(0x00, ADDRESS_ZERO)
+        revert(0x00, 0x04)
+      }
+      // check amoutA and amountB greater than amountAMin and amountBMin
+      if lt(amountA, amountAMin) {
+        // error INSUFFICIENT_A_AMOUNT
+        revert(0, 0)
+      }
+      if lt(amountB, amountBMin) {
+        // error INSUFFICIENT_B_AMOUNT
+        revert(0, 0)
+      }
     }
-    // IUniswapV2Pair(pair).transferFrom(msg.sender, pair, liquidity); // send liquidity to pair
-    // (uint amount0, uint amount1) = IUniswapV2Pair(pair).burn(to);
-    // (address token0,) = UniswapV2Library.sortTokens(tokenA, tokenB);
-    // (amountA, amountB) = tokenA == token0 ? (amount0, amount1) : (amount1, amount0);
-    // require(amountA >= amountAMin, 'UniswapV2Router: INSUFFICIENT_A_AMOUNT');
-    // require(amountB >= amountBMin, 'UniswapV2Router: INSUFFICIENT_B_AMOUNT');
   }
 }
